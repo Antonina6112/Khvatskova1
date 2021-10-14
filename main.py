@@ -54,9 +54,6 @@ for line in lines:
     country_name = result[0]
     country_name = re.sub('.*\s\s', '', country_name)
 
-    # {a: 'abc', b: 'zxc', 'USA': [0, 0, 0, 0]}
-    # dict['USA'][0] = result[1] ---> dict['USA'] = [что-то новое, 0, 0, 0]
-
     result_dct[country_name] = [0, 0, 0, 0]
     result_dct[country_name][0] = result[1]
     result_dct[country_name][1] = result[2]
