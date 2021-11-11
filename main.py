@@ -1,73 +1,211 @@
-import zipfile, os, hashlib, re, requests, csv
+import argparse
+import json
+import re
 
-# Задание 1
-os.mkdir('./result_dir')
-directory_to_extract_to = './result_dir'
-arch_file = zipfile.ZipFile('./tiff-4.2.0_lab1.zip')
-arch_file.extractall(directory_to_extract_to)
-arch_file.close()
+class Node:
+    """Interface"""
+    email: str
+    weight: str
+    inn: str
+    passport_series: str
+    university: str
+    work_experience: str
+    academic_degree: str
+    worldview: str
+    address: str
 
-# Задание 2
-print("Все тхт файлы:")
-for root, directories, files in os.walk(directory_to_extract_to):
-    for file in files:
-        if ".txt" in file:
-            f = open(os.path.join(root, file), 'rb').read()
-            print(os.path.join(root, file) + ' Hash: ' + hashlib.md5(f).hexdigest())
 
-# Задание 3
-print("Путь файла с указанным хэшем")
-link = ''
-for root, directories, files in os.walk(directory_to_extract_to):
-    for file in files:
-        f = open(os.path.join(root, file), 'rb').read()
-        if hashlib.md5(f).hexdigest() == "4636f9ae9fef12ebd56cd39586d33cfb":
-            print('Искомый файл: ' + os.path.join(root, file) + ' Hash: ' + hashlib.md5(f).hexdigest())
-            link = f
+class Validator:
+    """Validator class"""
+    nodes: list[Node]
 
-# Задание 4
-r = requests.get(link)
-result_dct = {}
-counter = 1
-lines = re.findall(r'<div class="Table-module_row__3TH83">.*?</div>.*?</div>.*?</div>.*?</div>.*?</div>', r.text)
-headers = re.sub('<.*?>', ' ', lines[0])
-headers = re.findall(r'Заболели|Умерли|Вылечились|Активные случаи', headers)
+    def __init__(self, nodes: list[Node]):
+        """Validator constructor"""
+        self.nodes = []
 
-for line in lines:
-    if counter > 0:
-        counter = 0
-        continue
+        for i in nodes:
+            self.nodes.append(i)
 
-    temp = re.sub('<.*?>', ';', line)
-    temp = re.sub('\(.*?\)', '', temp)
-    temp = re.sub(';+', ';', temp)
-    temp = temp[1: len(temp) - 1]
-    temp = re.sub('\s(?=\d)', '', temp)
-    temp = re.sub('(?<=\d)\s', '', temp)
-    temp = re.sub('(?<=0)\*', '', temp)
-    temp = re.sub('_', '-1', temp)
+    def parse_bad(self) -> dict:
+        """Get good nodes"""
+        bad_nodes = {
+            "email": 0,
+            "weight": 0,
+            "inn": 0,
+            "passport_series": 0,
+            "university": 0,
+            "work_experience": 0,
+            "academic_degree": 0,
+            "worldview": 0,
+            "address": 0
+        }
 
-    result = temp.split(';')
-    if len(result) == 6:
-        result.pop(0)
+        for i in self.nodes:
+            illkeys = self.parse_node(i)
+            keys = illkeys.keys()
 
-    country_name = result[0]
-    country_name = re.sub('.*\s\s', '', country_name)
+            for key in keys:
+                bad_nodes[key] += illkeys[key]
 
-    result_dct[country_name] = [0, 0, 0, 0]
-    result_dct[country_name][0] = result[1]
-    result_dct[country_name][1] = result[2]
-    result_dct[country_name][2] = result[3]
-    result_dct[country_name][3] = result[4]
+        return bad_nodes
 
-# Задание 5
-output = open('data.csv', 'w', encoding='utf-16')
-writer = csv.writer(output)
+    def parse_good(self) -> list[Node]:
+        """Get bad nodes"""
+        good_nodes: list[Node] = []
 
-for key, value in result_dct.items():
-    writer.writerow([key, value])
-output.close()
+        for i in self.nodes:
+            bad_keys = self.parse_node(i)
+            keys = bad_keys.keys()
+            flag = 0
 
-# Задание 6
-target_country = input("Введите название страны: ")
-print(result_dct[target_country])
+            for key in keys:
+                if bad_keys[key] > 0:
+                    flag += 1
+                    break
+
+            if flag == 0:
+                good_nodes.append(i)
+
+        return good_nodes
+
+    def parse_node(self, node: Node) -> dict[str, int]:
+        """Parse one element"""
+        bad_keys = {
+            "email": 0,
+            "weight": 0,
+            "inn": 0,
+            "passport_series": 0,
+            "university": 0,
+            "work_experience": 0,
+            "academic_degree": 0,
+            "worldview": 0,
+            "address": 0
+        }
+
+        if not self.check_email(node['email']):
+            bad_keys['email'] += 1
+        if not self.check_inn(node['inn']):
+            bad_keys['inn'] += 1
+        if not self.check_passport(node['passport_series']):
+            bad_keys['passport_series'] += 1
+        if not self.check_weight(node['weight']):
+            bad_keys['weight'] += 1
+        if not self.check_work_experience(node['work_experience']):
+            bad_keys['work_experience'] += 1
+        if not self.check_address(node['address']):
+            bad_keys['address'] += 1
+        if not self.check_university(node['university']):
+            bad_keys['university'] += 1
+        if not self.check_degree(node['academic_degree']):
+            bad_keys['academic_degree'] += 1
+        if not self.check_worldview(node['worldview']):
+            bad_keys['worldview'] += 1
+
+        return bad_keys
+
+    def check_email(self, email: str) -> bool:
+
+        pattern = "[^\\s@]+@([^\\s@.,]+\\.)+[^\\s@.,]{2,}"
+        if re.match(pattern, email):
+            return True
+        return False
+
+    def check_inn(self, inn: str) -> bool:
+
+        pattern = '^\\d{12}$'
+
+        if re.match(pattern, inn):
+            return True
+        return False
+
+    def check_passport(self, passport: str) -> bool:
+        pattern = '[0-9]+\s[0-9]+'
+
+        if re.match(pattern, passport):
+            return True
+        return False
+
+    def check_weight(self, weight: str) -> bool:
+        try:
+            int_w = int(weight)
+        except ValueError:
+            return False
+
+        return 300 > int_w > 30
+
+    def check_work_experience(self, work_experience: str) -> bool:
+        try:
+            int_exp = int(work_experience)
+        except ValueError:
+            return False
+
+        return 50 > int_exp > 0
+
+    def check_address(self, address: str) -> bool:
+
+        pattern = ".+[0-9]+"
+
+        if re.match(pattern, address):
+            return True
+        return False
+
+    def check_university(self, university: str) -> bool:
+
+        pattern = "[а-яА-Я]+"
+
+        if re.match(pattern, university):
+            return True
+        return False
+
+    def check_degree(self, degree: str) -> bool:
+
+        pattern = "(Специалист)|(Кандидат наук)|(Магистр)|(Бакалавр)|(Доктор наук)"
+
+        if re.match(pattern, degree):
+            return True
+        return False
+
+    def check_worldview(self, worldview: str) -> bool:
+
+        pattern = "(^[а-яА-Я]+$)|(^[а-яА-Я]+\s[а-я]+$)"
+
+        if re.match(pattern, worldview):
+            return True
+        return False
+
+
+class FileReader:
+    """Reads file data"""
+    data: list[Node]
+
+    def __init__(self, path) -> None:
+        """Reader contstructor"""
+        self.data = json.load(open(path, encoding='windows-1251'))
+
+    def get_data(self) -> list[Node]:
+        """Get all nodes"""
+        return self.data
+
+
+def create_parser():
+    pars = argparse.ArgumentParser()
+
+    pars.add_argument('--input', default='input.txt')
+    pars.add_argument('--output', default='output.txt')
+
+    return pars
+
+
+parser = create_parser()
+namespace = parser.parse_args()
+
+input_path = namespace.input
+output_path = namespace.output
+
+file = FileReader(input_path)
+validator = Validator(FileReader(input_path).get_data())
+print(validator.parse_bad())
+
+f = open(output_path, 'w')
+for i in validator.parse_good():
+    f.write(str(i) + '\n')
