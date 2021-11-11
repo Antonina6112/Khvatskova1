@@ -1,2 +1,1 @@
-# Khvatskova1
-laba 1
+# Khvatskova
